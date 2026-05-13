@@ -2,6 +2,48 @@
 
 CLI tool for Claude token usage transparency.
 
+## Sample output
+
+```
+$ tc logs --limit 6
+
+                                      Sessions
+| Project      | Turns |    Input |    Cache rd |    Output |       Total | Model   |
+|--------------|-------|----------|-------------|-----------|-------------|---------|
+| TokenCounter |   157 |      227 |   9,360,674 |    81,799 |  10,176,342 | sonnet- |
+| Adi          |    80 |      268 |   2,710,053 |    36,569 |   3,007,602 | sonnet- |
+| Bank         |    50 |       84 |   1,842,030 |    59,203 |   2,123,723 | sonnet- |
+| Adi          |    25 |    7,941 |     725,842 |    13,603 |     815,031 | sonnet- |
+| CardDispute  |    76 |    7,265 |   4,994,759 |    69,520 |   5,316,859 | sonnet- |
+| SequenceDiag |    62 |      122 |   2,717,726 |    77,343 |   2,861,428 | sonnet- |
+
++------ Token Usage Summary -------+
+| Sessions scanned:   11           |
+| Total turns:        1,137        |
+| Input tokens:       16,811       |
+| Cache reads:        72,388,315   |
+| Cache created:      3,755,002    |
+| Output tokens:      822,992      |
+| -------------------------------- |
+| Grand total:        76,983,120   |
++----------------------------------+
+```
+
+```
+$ tc forecast --days 14
+
+Daily Token Usage
+  + ..-@.
+  2026-04-29 -> 2026-05-13  (peak: 6,931,442)
+
++--------------- Forecast ----------------+
+| Avg daily usage:    2,565,849 tokens    |
+| Trend:              +108,760 tokens/day |
+| Projected 7 days:   3,653,451           |
+| Projected 30 days:  6,154,937           |
++-----------------------------------------+
+```
+
 ## Install
 
 ```bash
