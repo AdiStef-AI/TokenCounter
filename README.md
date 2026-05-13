@@ -66,6 +66,28 @@ tc logs --chart                # include daily usage chart
 tc logs --no-sync              # don't save to local DB
 ```
 
+Use `--project` to narrow results to a single project:
+
+```
+$ tc logs --project TokenCounter
+
+                                      Sessions
+| Project      | Turns |    Input |   Cache rd |   Output |      Total | Model   |
+|--------------|-------|----------|------------|----------|------------|---------|
+| TokenCounter |   162 |      232 |  9,845,070 |   82,828 | 10,664,768 | sonnet- |
+
++------ Token Usage Summary -------+
+| Sessions scanned:   1            |
+| Total turns:        162          |
+| Input tokens:       232          |
+| Cache reads:        9,845,070    |
+| Cache created:      736,638      |
+| Output tokens:      82,828       |
+| -------------------------------- |
+| Grand total:        10,664,768   |
++----------------------------------+
+```
+
 Token columns:
 - **Input** — fresh input tokens (not cached)
 - **Cache rd** — cache read tokens (cheaper)
