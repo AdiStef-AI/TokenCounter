@@ -222,6 +222,13 @@ def watch(
         session_file = all_jsonl[0]
         console.print(f"[dim]Watching most recent session: {session_file.name}[/dim]")
 
+    # Derive project name from the parent directory name
+    from .tracker import _decode_project_path
+    parent = session_file.parent
+    if parent.name == "subagents":
+        parent = parent.parent
+    project_name = _decode_project_path(parent.name).split("/")[-1]
+
     limit = get_context_limit(model)
     console.print(f"[dim]Watching {session_file} | model={model} | limit={limit:,} | every {interval}s[/dim]")
     console.print("Press Ctrl+C to stop.\n")
@@ -231,7 +238,7 @@ def watch(
             summary = _summarize_session(session_file, "")
             alert = check_context_usage(summary.last_turn_context_tokens, limit)
             console.clear()
-            console.print(f"[bold]Session:[/bold] {session_file.name}  |  Turns: {summary.turns}")
+            console.print(f"[bold]Project:[/bold] {project_name}  |  [bold]Session:[/bold] {session_file.name}  |  Turns: {summary.turns}")
             print_alert(alert)
             time.sleep(interval)
     except KeyboardInterrupt:
