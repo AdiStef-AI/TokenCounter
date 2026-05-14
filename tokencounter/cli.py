@@ -30,9 +30,10 @@ def logs(
     """Scan local Claude Code transcripts and show token usage."""
     from .tracker import CLAUDE_DIR, iter_sessions, iter_turns
     from .storage import upsert_session, upsert_turns, query_daily_totals
-    from .display import print_session_table, print_summary_panel, print_plotext_chart
+    from .display import print_session_table, print_summary_panel, print_plotext_chart, _palette
 
-    console.print(f"[dim]Scanning {CLAUDE_DIR}...[/dim]")
+    p = _palette()
+    console.print(f"[{p.label}]Scanning {CLAUDE_DIR}...[/{p.label}]")
 
     sessions = list(iter_sessions(project_filter=project))
     if not sessions:
@@ -211,16 +212,14 @@ def watch(
     from .tracker import CLAUDE_DIR, iter_sessions, _summarize_session
     from .counter import get_context_limit
     from .alerts import check_context_usage
-    from .display import print_alert
+    from .display import print_alert, print_watch_status
 
     if session_file is None:
-        # Find the most recently modified session
         all_jsonl = sorted(CLAUDE_DIR.rglob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not all_jsonl:
             console.print("[red]No session files found.[/red]")
             raise typer.Exit(1)
         session_file = all_jsonl[0]
-        console.print(f"[dim]Watching most recent session: {session_file.name}[/dim]")
 
     # Derive project name from the parent directory name
     from .tracker import _decode_project_path
@@ -230,15 +229,13 @@ def watch(
     project_name = _decode_project_path(parent.name).split("/")[-1]
 
     limit = get_context_limit(model)
-    console.print(f"[dim]Watching {session_file} | model={model} | limit={limit:,} | every {interval}s[/dim]")
-    console.print("Press Ctrl+C to stop.\n")
 
     try:
         while True:
             summary = _summarize_session(session_file, "")
             alert = check_context_usage(summary.last_turn_context_tokens, limit)
             console.clear()
-            console.print(f"[bold]Project:[/bold] {project_name}  |  [bold]Session:[/bold] {session_file.name}  |  Turns: {summary.turns}")
+            print_watch_status(project_name, session_file.name, summary.turns, model, limit, interval)
             print_alert(alert)
             time.sleep(interval)
     except KeyboardInterrupt:

@@ -291,6 +291,19 @@ def print_alert(alert: Alert) -> None:
         console.print(f"  [{color}]{alert.message}[/{color}]")
 
 
+def print_watch_status(project: str, session_name: str, turns: int, model: str, limit: int, interval: float) -> None:
+    p = _palette()
+    console.print(
+        f"[{p.label}][bold]Project:[/bold] {project}  |  "
+        f"[bold]Session:[/bold] {session_name}  |  "
+        f"Turns: {turns}[/{p.label}]"
+    )
+    console.print(
+        f"[{p.label}]model={model}  limit={limit:,}  every {interval}s  "
+        f"(Ctrl+C to stop)[/{p.label}]"
+    )
+
+
 def print_count_result(result: dict, model: str) -> None:
     tokens = result.get("input_token_count", 0)
     from .counter import get_context_limit
