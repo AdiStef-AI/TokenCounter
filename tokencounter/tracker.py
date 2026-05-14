@@ -43,6 +43,7 @@ class SessionSummary:
     cache_creation_tokens: int = 0
     cache_read_tokens: int = 0
     output_tokens: int = 0
+    last_turn_context_tokens: int = 0  # input+cache of the most recent turn = current context size
     models: list[str] = field(default_factory=list)
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -126,10 +127,14 @@ def _summarize_session(path: Path, project_path: str) -> SessionSummary:
             continue
 
         summary.turns += 1
-        summary.input_tokens += usage.get("input_tokens", 0)
-        summary.cache_creation_tokens += usage.get("cache_creation_input_tokens", 0)
-        summary.cache_read_tokens += usage.get("cache_read_input_tokens", 0)
+        turn_input = usage.get("input_tokens", 0)
+        turn_cache_create = usage.get("cache_creation_input_tokens", 0)
+        turn_cache_read = usage.get("cache_read_input_tokens", 0)
+        summary.input_tokens += turn_input
+        summary.cache_creation_tokens += turn_cache_create
+        summary.cache_read_tokens += turn_cache_read
         summary.output_tokens += usage.get("output_tokens", 0)
+        summary.last_turn_context_tokens = turn_input + turn_cache_create + turn_cache_read
 
         model = msg.get("model", "unknown")
         if model not in summary.models:

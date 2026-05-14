@@ -229,7 +229,7 @@ def watch(
     try:
         while True:
             summary = _summarize_session(session_file, "")
-            alert = check_context_usage(summary.total_tokens, limit)
+            alert = check_context_usage(summary.last_turn_context_tokens, limit)
             console.clear()
             console.print(f"[bold]Session:[/bold] {session_file.name}  |  Turns: {summary.turns}")
             print_alert(alert)
