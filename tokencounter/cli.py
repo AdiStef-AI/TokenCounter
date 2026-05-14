@@ -203,12 +203,12 @@ def usage(
 @app.command()
 def watch(
     session_file: Optional[Path] = typer.Argument(None, help="Path to .jsonl session file"),
-    model: str = typer.Option("claude-opus-4-7", "--model", "-m"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Override model for context limit (auto-detected by default)"),
     interval: float = typer.Option(5.0, "--interval", "-i", help="Refresh interval in seconds"),
 ):
     """Watch a session file and alert when context usage is high."""
     import time
-    from .tracker import CLAUDE_DIR, iter_sessions, _summarize_session
+    from .tracker import CLAUDE_DIR, _summarize_session
     from .counter import get_context_limit
     from .alerts import check_context_usage
     from .display import print_alert, print_watch_status
@@ -220,21 +220,21 @@ def watch(
             raise typer.Exit(1)
         session_file = all_jsonl[0]
 
-    # Derive project name from the parent directory name
     from .tracker import _decode_project_path
     parent = session_file.parent
     if parent.name == "subagents":
         parent = parent.parent
     project_name = _decode_project_path(parent.name).split("/")[-1]
 
-    limit = get_context_limit(model)
-
     try:
         while True:
             summary = _summarize_session(session_file, "")
+            # Use model from transcript unless overridden
+            active_model = model or (summary.models[-1] if summary.models else "claude-sonnet-4-6")
+            limit = get_context_limit(active_model)
             alert = check_context_usage(summary.last_turn_context_tokens, limit)
             console.clear()
-            print_watch_status(project_name, session_file.name, summary.turns, model, limit, interval)
+            print_watch_status(project_name, session_file.name, summary.turns, active_model, limit, interval)
             print_alert(alert)
             time.sleep(interval)
     except KeyboardInterrupt:
