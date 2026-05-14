@@ -128,9 +128,13 @@ tc watch --model claude-haiku-4-5 --interval 10
 ```
 $ tc watch
 
-Project: TokenCounter  |  Session: 04db72be-...jsonl  |  Turns: 208
- OK Context: ##########.............................. 11.2% (111,845 / 1,000,000)
+Project: TokenCounter  |  Session: 04db72be-1edc-43c6-a8ae-ba905e0d4682.jsonl  |  Turns: 296
+model=claude-sonnet-4-6  limit=1,000,000  every 5.0s  (Ctrl+C to stop)
+
+ OK Context: ######.................................. 15.9% (158,992 / 1,000,000)
 ```
+
+The model and context limit are auto-detected from the transcript on every refresh.
 
 ### `tc usage` — Admin API usage report
 
