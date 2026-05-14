@@ -125,6 +125,13 @@ tc watch path/to/session.jsonl
 tc watch --model claude-haiku-4-5 --interval 10
 ```
 
+```
+$ tc watch
+
+Project: TokenCounter  |  Session: 04db72be-...jsonl  |  Turns: 208
+ OK Context: ##########.............................. 11.2% (111,845 / 1,000,000)
+```
+
 ### `tc usage` — Admin API usage report
 
 Requires an Admin API key (`sk-ant-admin...`) and an organization account.
