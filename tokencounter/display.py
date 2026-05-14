@@ -87,12 +87,19 @@ _PALETTES: dict[str, Palette] = {
         ok="bright_cyan", warning="bright_magenta", critical="bright_red",
         sparkline="bright_blue", label="white",
     ),
-    # light/white/gray backgrounds — use deep saturated colours
+    # light gray (7=Gray) — bold dark colours for strong contrast
     "light": Palette(
-        cache_read="dark_green", cache_create="dark_goldenrod",
-        output="dark_cyan", total="bold black",
-        ok="dark_green", warning="dark_orange3", critical="red3",
-        sparkline="blue", label="black",
+        cache_read="green4", cache_create="dark_orange",
+        output="blue", total="bold black",
+        ok="green4", warning="dark_orange", critical="red",
+        sparkline="blue", label="bold black",
+    ),
+    # white (15=White) — deepest colours needed for max contrast
+    "white": Palette(
+        cache_read="dark_green", cache_create="orange4",
+        output="navy_blue", total="bold black",
+        ok="dark_green", warning="orange4", critical="dark_red",
+        sparkline="navy_blue", label="bold black",
     ),
 }
 
@@ -105,7 +112,8 @@ _BG_TO_PALETTE = {
     4: "red",     # DarkRed
     5: "magenta", # DarkMagenta
     6: "yellow",  # DarkYellow/Brown
-    7: "light",   # Gray
+    7: "light",   # Gray  (medium grey → bold dark colours)
+
     8: "dark",    # DarkGray
     9: "blue",    # Blue
     10: "green",  # Green
@@ -113,7 +121,7 @@ _BG_TO_PALETTE = {
     12: "red",    # Red
     13: "magenta",# Magenta
     14: "yellow", # Yellow
-    15: "light",  # White
+    15: "white",  # White
 }
 
 
@@ -223,11 +231,11 @@ def print_sparkline(daily_totals: list[dict], title: str = "Daily Token Usage") 
         bar_chars.append(bars[idx])
 
     spark = "".join(bar_chars)
-    console.print(f"\n[bold]{title}[/bold]")
+    console.print(f"\n[bold {p.label}]{title}[/bold {p.label}]")
     console.print(f"  [{p.sparkline}]{spark}[/{p.sparkline}]")
     first_day = daily_totals[0]["day"]
     last_day = daily_totals[-1]["day"]
-    console.print(f"  [dim]{first_day} -> {last_day}  (peak: {_fmt(max_val)})[/dim]\n")
+    console.print(f"  [{p.label}]{first_day} -> {last_day}  (peak: {_fmt(max_val)})[/{p.label}]\n")
 
 
 def print_plotext_chart(daily_totals: list[dict], title: str = "Daily Token Usage") -> None:
@@ -253,10 +261,10 @@ def print_forecast(fc: ForecastResult) -> None:
     p = _palette()
     sign = "+" if fc.trend_slope >= 0 else ""
     lines = [
-        f"Avg daily usage:    [bold]{_fmt(fc.avg_daily_tokens)}[/bold] tokens",
-        f"Trend:              {sign}{int(fc.trend_slope):,} tokens/day",
-        f"Projected 7 days:   [bold]{_fmt(fc.projected_7d)}[/bold]",
-        f"Projected 30 days:  [bold]{_fmt(fc.projected_30d)}[/bold]",
+        f"[{p.label}]Avg daily usage:    [bold]{_fmt(fc.avg_daily_tokens)}[/bold] tokens[/{p.label}]",
+        f"[{p.label}]Trend:              {sign}{int(fc.trend_slope):,} tokens/day[/{p.label}]",
+        f"[{p.label}]Projected 7 days:   [bold]{_fmt(fc.projected_7d)}[/bold][/{p.label}]",
+        f"[{p.label}]Projected 30 days:  [bold]{_fmt(fc.projected_30d)}[/bold][/{p.label}]",
     ]
     if fc.days_to_limit is not None:
         lines.append(
@@ -282,10 +290,11 @@ def print_alert(alert: Alert) -> None:
         color = p.ok
         label = " OK"
 
-    bar = f"[{color}]{'#' * filled}[/{color}]{'.' * empty}"
+    bar = f"[{color}]{'#' * filled}[/{color}][{p.label}]{'.' * empty}[/{p.label}]"
     console.print(
-        f"\n[{color}]{label}[/{color}] Context: {bar} [bold]{pct:.1%}[/bold] "
-        f"({_fmt(alert.tokens_used)} / {_fmt(alert.tokens_limit)})"
+        f"\n[{color}]{label}[/{color}] [{p.label}]Context:[/{p.label}] {bar} "
+        f"[bold {color}]{pct:.1%}[/bold {color}] "
+        f"[{p.label}]({_fmt(alert.tokens_used)} / {_fmt(alert.tokens_limit)})[/{p.label}]"
     )
     if alert.level != AlertLevel.OK:
         console.print(f"  [{color}]{alert.message}[/{color}]")
