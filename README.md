@@ -115,26 +115,53 @@ tc forecast --days 14        # last 14 days
 tc forecast --session 50000  # also show how many days until context full
 ```
 
-### `tc watch` — Live context monitor
+### `tc window` — Rolling 5-hour usage window
 
-Watches a session file and alerts when approaching the context limit.
+Shows how many tokens you've used across all sessions in the last 5 hours — the same window that drives Claude Code's built-in `/usage` rate-limit display.
 
 ```bash
-tc watch                     # watches most recent session
+tc window                          # show rolling 5h stats
+tc window --set-limit 10000000     # save your plan's token limit (enables % bar)
+tc window --plan-limit 5000000     # one-time override, not saved
+tc window --hours 3                # use a 3h window instead
+```
+
+```
+$ tc window --set-limit 10000000
+
+Plan limit saved: 10,000,000 tokens per 5h window
++--------------------------- Rolling 5h Window ---------------------------+
+| ##############.......................... 36.4% (3,643,109 / 10,000,000) |
+| Window opened:  09:45 AM  (27m ago)                                     |
+| Pressure drops: 02:45 PM  (in 4h 32m)                                   |
++-------------------------------------------------------------------------+
+```
+
+The plan limit is saved to `~/.claude/tokencounter_config.json` and reused by all subsequent calls. Run `tc window` without `--set-limit` any time after that to get a fresh snapshot.
+
+### `tc watch` — Live context monitor
+
+Watches a session file and alerts when approaching the context limit. Also shows the rolling 5h window usage inline.
+
+```bash
+tc watch                               # watches most recent session
 tc watch path/to/session.jsonl
 tc watch --model claude-haiku-4-5 --interval 10
+tc watch --plan-limit 10000000         # include 5h window % bar
+tc watch --no-window                   # hide the 5h window line
 ```
 
 ```
 $ tc watch
 
-Project: TokenCounter  |  Session: 04db72be-1edc-43c6-a8ae-ba905e0d4682.jsonl  |  Turns: 296
+Project: TokenCounter  |  Session: 04db72be-1edc-43c6-a8ae-ba905e0d4682.jsonl  |  Turns: 335
 model=claude-sonnet-4-6  limit=1,000,000  every 5.0s  (Ctrl+C to stop)
 
  OK Context: ######.................................. 15.9% (158,992 / 1,000,000)
+ 5h  window: ###############......................... 37.8% (3,777,569 / 10,000,000)  resets 02:45 PM
 ```
 
-The model and context limit are auto-detected from the transcript on every refresh.
+The model and context limit are auto-detected from the transcript on every refresh. The 5h window line uses the saved plan limit from `tc window --set-limit`.
 
 ### `tc usage` — Admin API usage report
 

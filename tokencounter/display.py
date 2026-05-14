@@ -196,6 +196,67 @@ def print_watch_status(project: str, session_name: str, turns: int, model: str, 
     console.print(f"model={model}  limit={limit:,}  every {interval}s  (Ctrl+C to stop)")
 
 
+def print_window_panel(
+    total: int,
+    limit: int | None,
+    oldest_ts,
+    reset_at,
+    hours: float,
+) -> None:
+    from datetime import datetime, timezone
+    p = _palette()
+    now = datetime.now(timezone.utc)
+
+    def _hm(td) -> str:
+        secs = int(abs(td.total_seconds()))
+        h, m = divmod(secs // 60, 60)
+        return f"{h}h {m:02d}m" if h else f"{m}m"
+
+    lines = []
+    if limit:
+        pct = min(total / limit, 1.0)
+        filled = int(pct * 40)
+        empty = 40 - filled
+        color = p.critical if pct >= 0.9 else (p.warning if pct >= 0.75 else p.ok)
+        bar = f"[{color}]{'#' * filled}[/{color}]{'.' * empty}"
+        lines.append(f"{bar} [{color}]{pct:.1%}[/{color}] ({_fmt(total)} / {_fmt(limit)})")
+    else:
+        lines.append(f"Tokens used: [bold]{_fmt(total)}[/bold]")
+
+    age = now - oldest_ts
+    reset_in = reset_at - now
+    lines.append(f"Window opened:  {oldest_ts.astimezone().strftime('%I:%M %p')}  ({_hm(age)} ago)")
+    if reset_in.total_seconds() > 0:
+        lines.append(f"Pressure drops: {reset_at.astimezone().strftime('%I:%M %p')}  (in {_hm(reset_in)})")
+    else:
+        lines.append(f"Pressure dropped: {_hm(reset_in)} ago")
+
+    console.print(Panel(
+        "\n".join(lines),
+        title=f"[bold]Rolling {hours:.0f}h Window[/bold]",
+        expand=False,
+        box=box.ASCII,
+    ))
+
+
+def print_window_line(total: int, limit: int | None, reset_at) -> None:
+    from datetime import datetime, timezone
+    p = _palette()
+    now = datetime.now(timezone.utc)
+    reset_in = reset_at - now
+    reset_str = reset_at.astimezone().strftime('%I:%M %p') if reset_in.total_seconds() > 0 else "now"
+
+    if limit:
+        pct = min(total / limit, 1.0)
+        filled = int(pct * 40)
+        empty = 40 - filled
+        color = p.critical if pct >= 0.9 else (p.warning if pct >= 0.75 else p.ok)
+        bar = f"[{color}]{'#' * filled}[/{color}]{'.' * empty}"
+        console.print(f" 5h  window: {bar} [{color}]{pct:.1%}[/{color}] ({_fmt(total)} / {_fmt(limit)})  resets {reset_str}")
+    else:
+        console.print(f" 5h  window: {_fmt(total)} tokens  |  resets {reset_str}")
+
+
 def print_count_result(result: dict, model: str) -> None:
     from .counter import get_context_limit
     tokens = result.get("input_token_count", 0)

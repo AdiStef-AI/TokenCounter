@@ -197,6 +197,45 @@ def usage(
 
 
 # ---------------------------------------------------------------------------
+# tc window  — rolling 5-hour usage window
+# ---------------------------------------------------------------------------
+
+@app.command()
+def window(
+    hours: float = typer.Option(5.0, "--hours", help="Rolling window size in hours"),
+    plan_limit: Optional[int] = typer.Option(None, "--plan-limit", "-l", help="Token limit override (one-time, not saved)"),
+    set_limit: Optional[int] = typer.Option(None, "--set-limit", help="Save plan token limit to config"),
+):
+    """Show rolling window token usage across all sessions (rate-limit context)."""
+    from datetime import timedelta
+    from .config import get_plan_limit as cfg_get, set_plan_limit as cfg_set
+    from .tracker import iter_recent_turns
+    from .display import print_window_panel
+
+    if set_limit is not None:
+        cfg_set(set_limit)
+        console.print(f"Plan limit saved: {set_limit:,} tokens per {hours:.0f}h window")
+
+    effective_limit = plan_limit or cfg_get()
+
+    turns = list(iter_recent_turns(hours=hours))
+    if not turns:
+        console.print(f"[dim]No turns found in the last {hours:.0f} hours.[/dim]")
+        if effective_limit is None:
+            console.print("[dim]Tip: run 'tc window --set-limit <tokens>' to enable percentage display.[/dim]")
+        return
+
+    total = sum(t.total_tokens for t in turns)
+    oldest_ts = min(t.timestamp for t in turns)
+    reset_at = oldest_ts + timedelta(hours=hours)
+
+    print_window_panel(total, effective_limit, oldest_ts, reset_at, hours)
+
+    if effective_limit is None:
+        console.print("[dim]Tip: run 'tc window --set-limit <tokens>' to enable percentage display.[/dim]")
+
+
+# ---------------------------------------------------------------------------
 # tc watch  — monitor a session file in real-time
 # ---------------------------------------------------------------------------
 
@@ -205,13 +244,16 @@ def watch(
     session_file: Optional[Path] = typer.Argument(None, help="Path to .jsonl session file"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Override model for context limit (auto-detected by default)"),
     interval: float = typer.Option(5.0, "--interval", "-i", help="Refresh interval in seconds"),
+    plan_limit: Optional[int] = typer.Option(None, "--plan-limit", "-l", help="Plan token limit for 5h window display"),
+    no_window: bool = typer.Option(False, "--no-window", help="Hide the 5h rolling window line"),
 ):
     """Watch a session file and alert when context usage is high."""
     import time
+    from datetime import timedelta
     from .tracker import CLAUDE_DIR, _summarize_session
     from .counter import get_context_limit
     from .alerts import check_context_usage
-    from .display import print_alert, print_watch_status
+    from .display import print_alert, print_watch_status, print_window_line
 
     if session_file is None:
         all_jsonl = sorted(CLAUDE_DIR.rglob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -236,6 +278,17 @@ def watch(
             console.clear()
             print_watch_status(project_name, session_file.name, summary.turns, active_model, limit, interval)
             print_alert(alert)
+
+            if not no_window:
+                from .config import get_plan_limit as cfg_get
+                from .tracker import iter_recent_turns
+                window_turns = list(iter_recent_turns(hours=5.0))
+                if window_turns:
+                    window_total = sum(t.total_tokens for t in window_turns)
+                    oldest_ts = min(t.timestamp for t in window_turns)
+                    reset_at = oldest_ts + timedelta(hours=5.0)
+                    print_window_line(window_total, plan_limit or cfg_get(), reset_at)
+
             time.sleep(interval)
     except KeyboardInterrupt:
         console.print("\n[dim]Stopped.[/dim]")

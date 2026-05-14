@@ -154,6 +154,34 @@ def _summarize_session(path: Path, project_path: str) -> SessionSummary:
     return summary
 
 
+def iter_recent_turns(
+    hours: float = 5.0,
+    projects_dir: Path = CLAUDE_DIR,
+) -> Iterator[TurnUsage]:
+    """Yield turns from all sessions with timestamps within the last N hours."""
+    from datetime import timedelta
+    if not projects_dir.exists():
+        return
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    cutoff_mtime = cutoff.timestamp()
+
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+        display_path = _decode_project_path(project_dir.name)
+        jsonl_files = list(project_dir.glob("*.jsonl"))
+        subagent_dir = project_dir / "subagents"
+        if subagent_dir.exists():
+            jsonl_files.extend(subagent_dir.glob("*.jsonl"))
+
+        for jsonl_path in jsonl_files:
+            if jsonl_path.stat().st_mtime < cutoff_mtime:
+                continue
+            for turn in iter_turns(jsonl_path, display_path):
+                if turn.timestamp >= cutoff:
+                    yield turn
+
+
 def iter_turns(path: Path, project_path: str = "") -> Iterator[TurnUsage]:
     """Yield per-turn token usage from a single JSONL file."""
     for entry in _parse_jsonl(path):
