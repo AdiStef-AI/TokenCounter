@@ -16,7 +16,7 @@ console = Console()
 
 
 # ---------------------------------------------------------------------------
-# Background detection + colour palette
+# Background detection + per-hue colour palettes
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -29,66 +29,127 @@ class Palette:
     warning: str
     critical: str
     sparkline: str
+    label: str       # general text / labels
 
 
-# Vivid colours for dark backgrounds (black, dark blue, dark grey)
-_DARK = Palette(
-    cache_read="bright_green",
-    cache_create="bright_yellow",
-    output="bright_cyan",
-    total="bold bright_white",
-    ok="bright_green",
-    warning="bright_yellow",
-    critical="bright_red",
-    sparkline="bright_cyan",
-)
+# Windows console colour indices 0-15:
+#   0=Black  1=DarkBlue  2=DarkGreen  3=DarkCyan  4=DarkRed  5=DarkMagenta
+#   6=DarkYellow(Brown)  7=Gray  8=DarkGray  9=Blue  10=Green  11=Cyan
+#  12=Red  13=Magenta  14=Yellow  15=White
 
-# Deeper colours for light backgrounds (white, light grey)
-_LIGHT = Palette(
-    cache_read="dark_green",
-    cache_create="dark_goldenrod",
-    output="dark_cyan",
-    total="bold black",
-    ok="dark_green",
-    warning="dark_orange3",
-    critical="red3",
-    sparkline="blue",
-)
+_PALETTES: dict[str, Palette] = {
+    # dark/black/dark-gray backgrounds — vivid colours are safe
+    "dark": Palette(
+        cache_read="bright_green", cache_create="bright_yellow",
+        output="bright_cyan", total="bold bright_white",
+        ok="bright_green", warning="bright_yellow", critical="bright_red",
+        sparkline="bright_cyan", label="bright_white",
+    ),
+    # blue background — avoid blue; use yellow/green/red
+    "blue": Palette(
+        cache_read="bright_green", cache_create="bright_yellow",
+        output="bright_white", total="bold bright_yellow",
+        ok="bright_green", warning="bright_yellow", critical="bright_red",
+        sparkline="bright_white", label="bright_white",
+    ),
+    # green background — avoid green/cyan; use yellow/magenta/white/red
+    "green": Palette(
+        cache_read="bright_yellow", cache_create="bright_magenta",
+        output="white", total="bold white",
+        ok="white", warning="bright_yellow", critical="bright_red",
+        sparkline="bright_yellow", label="white",
+    ),
+    # cyan background — avoid cyan/green; use yellow/magenta/white/red
+    "cyan": Palette(
+        cache_read="bright_yellow", cache_create="bright_magenta",
+        output="white", total="bold white",
+        ok="white", warning="bright_yellow", critical="bright_red",
+        sparkline="bright_yellow", label="white",
+    ),
+    # red background — avoid red; use green/cyan/yellow/white
+    "red": Palette(
+        cache_read="bright_green", cache_create="bright_yellow",
+        output="bright_cyan", total="bold bright_white",
+        ok="bright_green", warning="bright_yellow", critical="bright_white",
+        sparkline="bright_cyan", label="bright_white",
+    ),
+    # magenta background — avoid magenta; use green/cyan/yellow
+    "magenta": Palette(
+        cache_read="bright_green", cache_create="bright_yellow",
+        output="bright_cyan", total="bold bright_white",
+        ok="bright_green", warning="bright_yellow", critical="bright_white",
+        sparkline="bright_cyan", label="bright_white",
+    ),
+    # yellow/brown background — avoid yellow; use cyan/magenta/blue/white
+    "yellow": Palette(
+        cache_read="bright_cyan", cache_create="bright_magenta",
+        output="bright_blue", total="bold white",
+        ok="bright_cyan", warning="bright_magenta", critical="bright_red",
+        sparkline="bright_blue", label="white",
+    ),
+    # light/white/gray backgrounds — use deep saturated colours
+    "light": Palette(
+        cache_read="dark_green", cache_create="dark_goldenrod",
+        output="dark_cyan", total="bold black",
+        ok="dark_green", warning="dark_orange3", critical="red3",
+        sparkline="blue", label="black",
+    ),
+}
+
+# Map Windows console bg index → palette key
+_BG_TO_PALETTE = {
+    0: "dark",    # Black
+    1: "blue",    # DarkBlue
+    2: "green",   # DarkGreen
+    3: "cyan",    # DarkCyan
+    4: "red",     # DarkRed
+    5: "magenta", # DarkMagenta
+    6: "yellow",  # DarkYellow/Brown
+    7: "light",   # Gray
+    8: "dark",    # DarkGray
+    9: "blue",    # Blue
+    10: "green",  # Green
+    11: "cyan",   # Cyan
+    12: "red",    # Red
+    13: "magenta",# Magenta
+    14: "yellow", # Yellow
+    15: "light",  # White
+}
 
 
-def _detect_background() -> str:
-    """Return 'dark' or 'light' based on the active terminal background."""
-    # Windows Console API — works when running in an actual terminal
+def _detect_bg_index() -> int:
+    """Return the Windows console background colour index (0-15), or -1 on failure."""
     try:
         import ctypes
         handle = ctypes.windll.kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
         csbi = ctypes.create_string_buffer(22)
         if ctypes.windll.kernel32.GetConsoleScreenBufferInfo(handle, csbi):
             attrs = int.from_bytes(csbi[8:10], "little")
-            bg = (attrs >> 4) & 0xF
-            # 0-6 = dark colours, 7-15 = light/bright colours
-            return "light" if bg >= 7 else "dark"
+            return (attrs >> 4) & 0xF
     except Exception:
         pass
+    return -1
 
-    # Unix hint: COLORFGBG=<fg>;<bg> where bg<8 means dark
+
+def _palette() -> Palette:
+    bg = _detect_bg_index()
+    if bg >= 0:
+        return _PALETTES[_BG_TO_PALETTE[bg]]
+
+    # Unix fallback: COLORFGBG=<fg>;<bg>
     colorfgbg = os.environ.get("COLORFGBG", "")
     if colorfgbg:
         try:
             bg = int(colorfgbg.split(";")[-1])
-            return "light" if bg >= 8 else "dark"
+            return _PALETTES["light" if bg >= 8 else "dark"]
         except ValueError:
             pass
 
-    return "dark"  # safe default — most terminals are dark
-
-
-def _palette() -> Palette:
-    return _LIGHT if _detect_background() == "light" else _DARK
+    return _PALETTES["dark"]
 
 
 # ---------------------------------------------------------------------------
-# Formatting helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _fmt(n: int | float) -> str:
@@ -175,7 +236,8 @@ def print_plotext_chart(daily_totals: list[dict], title: str = "Daily Token Usag
 
         days = [d["day"] for d in daily_totals]
         totals = [d["total_tokens"] for d in daily_totals]
-        theme = "clear" if _detect_background() == "light" else "dark"
+        bg = _detect_bg_index()
+        theme = "clear" if bg >= 7 else "dark"
 
         plt.clear_figure()
         plt.bar(days, totals, orientation="v", width=0.5)
@@ -230,7 +292,6 @@ def print_alert(alert: Alert) -> None:
 
 
 def print_count_result(result: dict, model: str) -> None:
-    p = _palette()
     tokens = result.get("input_token_count", 0)
     from .counter import get_context_limit
     limit = get_context_limit(model)
