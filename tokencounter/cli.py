@@ -30,10 +30,9 @@ def logs(
     """Scan local Claude Code transcripts and show token usage."""
     from .tracker import CLAUDE_DIR, iter_sessions, iter_turns
     from .storage import upsert_session, upsert_turns, query_daily_totals
-    from .display import print_session_table, print_summary_panel, print_plotext_chart, _palette
+    from .display import print_session_table, print_summary_panel, print_plotext_chart
 
-    p = _palette()
-    console.print(f"[{p.label}]Scanning {CLAUDE_DIR}...[/{p.label}]")
+    console.print(f"Scanning {CLAUDE_DIR}...")
 
     sessions = list(iter_sessions(project_filter=project))
     if not sessions:
