@@ -28,11 +28,14 @@ def logs(
     chart: bool = typer.Option(False, "--chart", "-c", help="Show daily usage chart"),
 ):
     """Scan local Claude Code transcripts and show token usage."""
-    from .tracker import CLAUDE_DIR, iter_sessions, iter_turns
+    from .tracker import CLAUDE_DIR, CLAUDE_AI_DIR, iter_sessions, iter_turns
     from .storage import upsert_session, upsert_turns, query_daily_totals
     from .display import print_session_table, print_summary_panel, print_plotext_chart
 
-    console.print(f"Scanning {CLAUDE_DIR}...")
+    dirs = [str(CLAUDE_DIR)]
+    if CLAUDE_AI_DIR.exists():
+        dirs.append(str(CLAUDE_AI_DIR))
+    console.print(f"Scanning {' and '.join(dirs)}...")
 
     sessions = list(iter_sessions(project_filter=project))
     if not sessions:
@@ -250,23 +253,34 @@ def watch(
     """Watch a session file and alert when context usage is high."""
     import time
     from datetime import timedelta
-    from .tracker import CLAUDE_DIR, _summarize_session
+    from .tracker import CLAUDE_DIR, CLAUDE_AI_DIR, _summarize_session, _decode_project_path, _parse_jsonl
     from .counter import get_context_limit
     from .alerts import check_context_usage
     from .display import print_alert, print_watch_status, print_window_line
 
     if session_file is None:
-        all_jsonl = sorted(CLAUDE_DIR.rglob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        all_jsonl = []
+        if CLAUDE_DIR.exists():
+            all_jsonl.extend(CLAUDE_DIR.rglob("*.jsonl"))
+        if CLAUDE_AI_DIR.exists():
+            all_jsonl.extend(CLAUDE_AI_DIR.glob("*.jsonl"))
+        all_jsonl.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         if not all_jsonl:
             console.print("[red]No session files found.[/red]")
             raise typer.Exit(1)
         session_file = all_jsonl[0]
 
-    from .tracker import _decode_project_path
     parent = session_file.parent
     if parent.name == "subagents":
         parent = parent.parent
-    project_name = _decode_project_path(parent.name).split("/")[-1]
+    if parent == CLAUDE_AI_DIR:
+        project_name = "claude.ai"
+        for entry in _parse_jsonl(session_file):
+            if entry.get("type") == "assistant" and entry.get("project"):
+                project_name = entry["project"]
+                break
+    else:
+        project_name = _decode_project_path(parent.name).split("/")[-1]
 
     try:
         while True:

@@ -10,6 +10,7 @@ from typing import Iterator
 
 
 CLAUDE_DIR = Path.home() / ".claude" / "projects"
+CLAUDE_AI_DIR = Path.home() / ".claude" / "claude-ai"
 
 
 @dataclass
@@ -86,26 +87,32 @@ def iter_sessions(
     include_subagents: bool = True,
 ) -> Iterator[SessionSummary]:
     """Yield SessionSummary for every JSONL transcript found."""
-    if not projects_dir.exists():
-        return
+    if projects_dir.exists():
+        for project_dir in projects_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
 
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
-            continue
+            display_path = _decode_project_path(project_dir.name)
+            if project_filter and project_filter.lower() not in display_path.lower():
+                continue
 
-        display_path = _decode_project_path(project_dir.name)
-        if project_filter and project_filter.lower() not in display_path.lower():
-            continue
+            jsonl_files = list(project_dir.glob("*.jsonl"))
+            if include_subagents:
+                subagent_dir = project_dir / "subagents"
+                if subagent_dir.exists():
+                    jsonl_files.extend(subagent_dir.glob("*.jsonl"))
 
-        jsonl_files = list(project_dir.glob("*.jsonl"))
-        if include_subagents:
-            subagent_dir = project_dir / "subagents"
-            if subagent_dir.exists():
-                jsonl_files.extend(subagent_dir.glob("*.jsonl"))
+            for jsonl_path in jsonl_files:
+                summary = _summarize_session(jsonl_path, display_path)
+                if summary.turns > 0:
+                    yield summary
 
-        for jsonl_path in jsonl_files:
-            summary = _summarize_session(jsonl_path, display_path)
+    if CLAUDE_AI_DIR.exists():
+        for jsonl_path in CLAUDE_AI_DIR.glob("*.jsonl"):
+            summary = _summarize_session(jsonl_path, "")
             if summary.turns > 0:
+                if project_filter and project_filter.lower() not in summary.project_path.lower():
+                    continue
                 yield summary
 
 
@@ -120,6 +127,9 @@ def _summarize_session(path: Path, project_path: str) -> SessionSummary:
     for entry in _parse_jsonl(path):
         if entry.get("type") != "assistant":
             continue
+
+        if not summary.project_path:
+            summary.project_path = entry.get("project", "claude.ai")
 
         msg = entry.get("message", {})
         usage = msg.get("usage")
@@ -160,24 +170,31 @@ def iter_recent_turns(
 ) -> Iterator[TurnUsage]:
     """Yield turns from all sessions with timestamps within the last N hours."""
     from datetime import timedelta
-    if not projects_dir.exists():
-        return
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     cutoff_mtime = cutoff.timestamp()
 
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
-            continue
-        display_path = _decode_project_path(project_dir.name)
-        jsonl_files = list(project_dir.glob("*.jsonl"))
-        subagent_dir = project_dir / "subagents"
-        if subagent_dir.exists():
-            jsonl_files.extend(subagent_dir.glob("*.jsonl"))
+    if projects_dir.exists():
+        for project_dir in projects_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
+            display_path = _decode_project_path(project_dir.name)
+            jsonl_files = list(project_dir.glob("*.jsonl"))
+            subagent_dir = project_dir / "subagents"
+            if subagent_dir.exists():
+                jsonl_files.extend(subagent_dir.glob("*.jsonl"))
 
-        for jsonl_path in jsonl_files:
+            for jsonl_path in jsonl_files:
+                if jsonl_path.stat().st_mtime < cutoff_mtime:
+                    continue
+                for turn in iter_turns(jsonl_path, display_path):
+                    if turn.timestamp >= cutoff:
+                        yield turn
+
+    if CLAUDE_AI_DIR.exists():
+        for jsonl_path in CLAUDE_AI_DIR.glob("*.jsonl"):
             if jsonl_path.stat().st_mtime < cutoff_mtime:
                 continue
-            for turn in iter_turns(jsonl_path, display_path):
+            for turn in iter_turns(jsonl_path, ""):
                 if turn.timestamp >= cutoff:
                     yield turn
 
@@ -193,6 +210,8 @@ def iter_turns(path: Path, project_path: str = "") -> Iterator[TurnUsage]:
         if not usage:
             continue
 
+        turn_project = project_path or entry.get("project", "claude.ai")
+
         raw_ts = entry.get("timestamp", "")
         try:
             ts = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
@@ -201,7 +220,7 @@ def iter_turns(path: Path, project_path: str = "") -> Iterator[TurnUsage]:
 
         yield TurnUsage(
             session_id=path.stem,
-            project_path=project_path,
+            project_path=turn_project,
             timestamp=ts,
             model=msg.get("model", "unknown"),
             input_tokens=usage.get("input_tokens", 0),
