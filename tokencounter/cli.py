@@ -60,7 +60,14 @@ def logs(
         "output_tokens": sum(s.output_tokens for s in sessions),
     }
 
-    print_session_table(sessions[:limit])
+    code_sessions = [s for s in sessions if not s.file_path.is_relative_to(CLAUDE_AI_DIR)]
+    ai_sessions   = [s for s in sessions if s.file_path.is_relative_to(CLAUDE_AI_DIR)]
+
+    if code_sessions:
+        print_session_table(code_sessions[:limit], title="Claude Code Sessions")
+    if ai_sessions:
+        print_session_table(ai_sessions[:limit], title="claude.ai Sessions")
+
     print_summary_panel(totals)
 
     if chart:
